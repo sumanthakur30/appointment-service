@@ -2,7 +2,6 @@ package com.shopmanagement.appointmentservice.web;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -43,6 +42,15 @@ public class AppointmentController {
         return appointmentService.listToday(doctorId, date);
     }
 
+    @GetMapping("/patient/{patientId}")
+    public List<Appointment> patientHistory(
+            @PathVariable Long patientId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Integer limit) {
+        return appointmentService.listPatientHistory(patientId, from, to, limit);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Appointment book(@RequestBody Appointment appointment) {
@@ -63,6 +71,11 @@ public class AppointmentController {
     @PutMapping("/{id}/cancel")
     public Appointment cancel(@PathVariable Long id, @RequestParam(required = false) String reason) {
         return appointmentService.cancel(id, reason);
+    }
+
+    @PutMapping("/{id}")
+    public Appointment update(@PathVariable Long id, @RequestBody Appointment appointment) {
+        return appointmentService.update(id, appointment);
     }
 
     @PutMapping("/{id}/complete")

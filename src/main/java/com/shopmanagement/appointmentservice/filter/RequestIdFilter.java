@@ -21,12 +21,14 @@ public class RequestIdFilter extends OncePerRequestFilter {
     public static final String TENANT_ID_HEADER = "X-Tenant-Id";
     public static final String SHOP_ID_HEADER = "X-Shop-Id";
     public static final String AUTH_ROLE_HEADER = "X-Auth-Role";
+    public static final String AUTH_USER_HEADER = "X-Auth-User";
     public static final String AUTH_PERMISSIONS_HEADER = "X-Auth-Permissions";
     public static final String REQUEST_ID_MDC_KEY = "requestId";
 
     private static final ThreadLocal<Long> currentTenantId = new ThreadLocal<>();
     private static final ThreadLocal<String> currentShopId = new ThreadLocal<>();
     private static final ThreadLocal<String> currentRole = new ThreadLocal<>();
+    private static final ThreadLocal<String> currentUser = new ThreadLocal<>();
     private static final ThreadLocal<List<String>> currentPermissions = new ThreadLocal<>();
 
     @Override
@@ -58,6 +60,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
                 }
                 currentShopId.set(shopId.trim());
                 currentRole.set(normalize(request.getHeader(AUTH_ROLE_HEADER)));
+                currentUser.set(normalize(request.getHeader(AUTH_USER_HEADER)));
                 currentPermissions.set(parsePermissions(request.getHeader(AUTH_PERMISSIONS_HEADER)));
             }
             filterChain.doFilter(request, response);
@@ -66,6 +69,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
             currentTenantId.remove();
             currentShopId.remove();
             currentRole.remove();
+            currentUser.remove();
             currentPermissions.remove();
         }
     }
@@ -80,6 +84,10 @@ public class RequestIdFilter extends OncePerRequestFilter {
 
     public static String getCurrentRole() {
         return currentRole.get();
+    }
+
+    public static String getCurrentUser() {
+        return currentUser.get();
     }
 
     public static List<String> getCurrentPermissions() {

@@ -38,4 +38,12 @@ public final class TenantContext {
         }
         throw new SecurityException("Forbidden: missing required permission");
     }
+
+    public static String currentActor() {
+        String user = RequestIdFilter.getCurrentUser();
+        if (user == null || user.isBlank()) {
+            return "SYSTEM";
+        }
+        return user;
+    }
 }

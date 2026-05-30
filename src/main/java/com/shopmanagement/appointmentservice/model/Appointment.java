@@ -1,6 +1,7 @@
 package com.shopmanagement.appointmentservice.model;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 import com.shopmanagement.appointmentservice.model.base.TenantScopedEntity;
@@ -53,6 +54,9 @@ public class Appointment extends TenantScopedEntity {
     @Column(name = "consultation_fee")
     private Double consultationFee;
 
+    @Column(name = "payment_type", length = 30)
+    private String paymentType;
+
     @Column(name = "booked_by_account_id")
     private Long bookedByAccountId;
 
@@ -61,6 +65,12 @@ public class Appointment extends TenantScopedEntity {
 
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
+
+    @Column(name = "last_edited_by", length = 120)
+    private String lastEditedBy;
+
+    @Column(name = "last_edited_at")
+    private LocalDateTime lastEditedAt;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -86,10 +96,16 @@ public class Appointment extends TenantScopedEntity {
     public void setChiefComplaint(String chiefComplaint) { this.chiefComplaint = chiefComplaint; }
     public Double getConsultationFee() { return consultationFee; }
     public void setConsultationFee(Double consultationFee) { this.consultationFee = consultationFee; }
+    public String getPaymentType() { return paymentType; }
+    public void setPaymentType(String paymentType) { this.paymentType = paymentType; }
     public Long getBookedByAccountId() { return bookedByAccountId; }
     public void setBookedByAccountId(Long bookedByAccountId) { this.bookedByAccountId = bookedByAccountId; }
     public String getBookedVia() { return bookedVia; }
     public void setBookedVia(String bookedVia) { this.bookedVia = bookedVia; }
     public String getCancellationReason() { return cancellationReason; }
     public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
+    public String getLastEditedBy() { return lastEditedBy; }
+    public void setLastEditedBy(String lastEditedBy) { this.lastEditedBy = lastEditedBy; }
+    public LocalDateTime getLastEditedAt() { return lastEditedAt; }
+    public void setLastEditedAt(LocalDateTime lastEditedAt) { this.lastEditedAt = lastEditedAt; }
 }

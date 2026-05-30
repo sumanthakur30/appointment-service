@@ -1,6 +1,7 @@
 package com.shopmanagement.appointmentservice.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -22,6 +23,8 @@ public class AppointmentService {
 
     @Transactional(readOnly = true)
     public List<Appointment> listToday(Long doctorId, LocalDate date) {
+        TenantContext.requireAnyPermission(
+                "MANAGE_APPOINTMENTS", "MANAGE_QUEUE", "MANAGE_CONSULTATIONS", "VIEW_DOCTOR_DASHBOARD");
         Long tenantId = TenantContext.requireTenantId();
         String shopId = TenantContext.requireShopId();
         LocalDate targetDate = date != null ? date : LocalDate.now();
@@ -33,23 +36,52 @@ public class AppointmentService {
                 tenantId, shopId, targetDate);
     }
 
+    @Transactional(readOnly = true)
+    public List<Appointment> listPatientHistory(Long patientId, LocalDate from, LocalDate to, Integer limit) {
+        TenantContext.requireAnyPermission(
+                "MANAGE_APPOINTMENTS",
+                "MANAGE_CONSULTATIONS",
+                "VIEW_PATIENT_HISTORY",
+                "MANAGE_CUSTOMERS");
+        if (patientId == null || patientId <= 0) {
+            throw new IllegalArgumentException("patientId is required");
+        }
+        Long tenantId = TenantContext.requireTenantId();
+        LocalDate toDate = to != null ? to : LocalDate.now();
+        LocalDate fromDate = from != null ? from : toDate.minusDays(365);
+        int max = limit != null && limit > 0 ? Math.min(limit, 300) : 100;
+        return appointmentRepository
+                .findByTenantIdAndPatientIdAndAppointmentDateGreaterThanEqualAndAppointmentDateLessThanEqualOrderByAppointmentDateDescStartTimeDesc(
+                        tenantId,
+                        patientId,
+                        fromDate,
+                        toDate)
+                .stream()
+                .limit(max)
+                .toList();
+    }
+
     @Transactional
     public Appointment book(Appointment appointment) {
-        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_CONSULTATIONS", "MANAGE_ORDERS");
+        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_CONSULTATIONS");
         return saveNew(appointment, "SCHEDULED", "BOOKED", "RECEPTION");
     }
 
     @Transactional
     public Appointment walkIn(Appointment appointment) {
-        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_CONSULTATIONS", "MANAGE_ORDERS");
-        Appointment saved = saveNew(appointment, "WALK_IN", "CONFIRMED", "RECEPTION");
+        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_QUEUE");
+        String visitType = appointment.getType();
+        if (visitType == null || visitType.isBlank()) {
+            visitType = "WALK_IN";
+        }
+        Appointment saved = saveNew(appointment, visitType.trim().toUpperCase(), "CONFIRMED", "RECEPTION");
         saved.setStatus("CHECKED_IN");
         return appointmentRepository.save(saved);
     }
 
     @Transactional
     public Appointment checkIn(Long id) {
-        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_CONSULTATIONS", "MANAGE_ORDERS");
+        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_QUEUE");
         Appointment appointment = require(id);
         appointment.setStatus("CHECKED_IN");
         return appointmentRepository.save(appointment);
@@ -57,15 +89,55 @@ public class AppointmentService {
 
     @Transactional
     public Appointment cancel(Long id, String reason) {
-        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_CONSULTATIONS", "MANAGE_ORDERS");
+        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_QUEUE");
         Appointment appointment = require(id);
         appointment.setStatus("CANCELLED");
         appointment.setCancellationReason(reason);
         return appointmentRepository.save(appointment);
     }
 
-  @Transactional
+    @Transactional
+    public Appointment update(Long id, Appointment payload) {
+        TenantContext.requireAnyPermission("MANAGE_APPOINTMENTS", "MANAGE_QUEUE");
+        Appointment appointment = require(id);
+        if ("COMPLETED".equalsIgnoreCase(appointment.getStatus()) || "CANCELLED".equalsIgnoreCase(appointment.getStatus())) {
+            throw new IllegalArgumentException("Completed or cancelled appointments cannot be edited");
+        }
+
+        if (payload.getBranchId() != null) {
+            appointment.setBranchId(payload.getBranchId());
+        }
+        if (payload.getDoctorId() != null) {
+            appointment.setDoctorId(payload.getDoctorId());
+        }
+        if (payload.getChiefComplaint() != null) {
+            appointment.setChiefComplaint(payload.getChiefComplaint());
+        }
+        if (payload.getPaymentType() != null) {
+            appointment.setPaymentType(payload.getPaymentType());
+        }
+        if (payload.getType() != null && !payload.getType().isBlank()) {
+            appointment.setType(payload.getType().trim().toUpperCase());
+        }
+        if (payload.getDepartmentId() != null) {
+            appointment.setDepartmentId(payload.getDepartmentId());
+        }
+        if (payload.getStartTime() != null) {
+            appointment.setStartTime(payload.getStartTime());
+        }
+        if (payload.getEndTime() != null) {
+            appointment.setEndTime(payload.getEndTime());
+        }
+        appointment.setLastEditedBy(TenantContext.currentActor());
+        appointment.setLastEditedAt(LocalDateTime.now());
+
+        validateRequired(appointment);
+        return appointmentRepository.save(appointment);
+    }
+
+    @Transactional
     public Appointment complete(Long id) {
+        TenantContext.requireAnyPermission("MANAGE_CONSULTATIONS", "WRITE_PRESCRIPTION", "VIEW_DOCTOR_DASHBOARD");
         Appointment appointment = require(id);
         appointment.setStatus("COMPLETED");
         return appointmentRepository.save(appointment);
