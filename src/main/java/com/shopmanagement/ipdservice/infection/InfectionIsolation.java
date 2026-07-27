@@ -26,6 +26,10 @@ public class InfectionIsolation extends TenantScopedEntity {
     @Column(name = "isolation_type", nullable = false, length = 64)
     private String isolationType;
 
+    /** Config catalogue code e.g. AIRBORNE_TB, CONTACT_MDRO */
+    @Column(name = "reason_code", length = 64)
+    private String reasonCode;
+
     @Column(length = 128)
     private String pathogen;
 
@@ -53,6 +57,8 @@ public class InfectionIsolation extends TenantScopedEntity {
     public void setAdmissionId(Long admissionId) { this.admissionId = admissionId; }
     public String getIsolationType() { return isolationType; }
     public void setIsolationType(String isolationType) { this.isolationType = isolationType; }
+    public String getReasonCode() { return reasonCode; }
+    public void setReasonCode(String reasonCode) { this.reasonCode = reasonCode; }
     public String getPathogen() { return pathogen; }
     public void setPathogen(String pathogen) { this.pathogen = pathogen; }
     public String getPpeRequired() { return ppeRequired; }

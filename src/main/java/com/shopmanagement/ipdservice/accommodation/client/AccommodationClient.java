@@ -51,7 +51,20 @@ public class AccommodationClient {
             LocalDateTime expectedDischargeAt,
             boolean reserveOnly) {
         return allocateBed(bedId, admissionNo, occupantRef, occupantName, expectedDischargeAt, reserveOnly,
-                currentHeaders());
+                null, null, currentHeaders());
+    }
+
+    public BedOccupancyDto allocateBed(
+            Long bedId,
+            String admissionNo,
+            String occupantRef,
+            String occupantName,
+            LocalDateTime expectedDischargeAt,
+            boolean reserveOnly,
+            String patientGender,
+            Integer patientAgeYears) {
+        return allocateBed(bedId, admissionNo, occupantRef, occupantName, expectedDischargeAt, reserveOnly,
+                patientGender, patientAgeYears, currentHeaders());
     }
 
     public BedOccupancyDto allocateBed(
@@ -62,6 +75,20 @@ public class AccommodationClient {
             LocalDateTime expectedDischargeAt,
             boolean reserveOnly,
             TenantHeaders headers) {
+        return allocateBed(bedId, admissionNo, occupantRef, occupantName, expectedDischargeAt, reserveOnly,
+                null, null, headers);
+    }
+
+    public BedOccupancyDto allocateBed(
+            Long bedId,
+            String admissionNo,
+            String occupantRef,
+            String occupantName,
+            LocalDateTime expectedDischargeAt,
+            boolean reserveOnly,
+            String patientGender,
+            Integer patientAgeYears,
+            TenantHeaders headers) {
         requireEnabled();
         java.util.HashMap<String, Object> payload = new java.util.HashMap<>();
         payload.put("admissionNo", admissionNo != null ? admissionNo : "");
@@ -70,6 +97,12 @@ public class AccommodationClient {
         payload.put("reserveOnly", reserveOnly);
         if (expectedDischargeAt != null) {
             payload.put("expectedDischargeAt", expectedDischargeAt);
+        }
+        if (patientGender != null && !patientGender.isBlank()) {
+            payload.put("patientGender", patientGender);
+        }
+        if (patientAgeYears != null) {
+            payload.put("patientAgeYears", patientAgeYears);
         }
         try {
             BedOccupancyDto occ = webClient.post()
@@ -93,6 +126,55 @@ public class AccommodationClient {
             throw ex;
         } catch (Exception ex) {
             throw new IllegalStateException("Bed allocate failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    public List<AccommodationBedDto> listEligibleBeds(
+            String gender,
+            Integer ageYears,
+            boolean availableOnly,
+            Boolean isolationCapable,
+            String isolationType) {
+        return listEligibleBeds(gender, ageYears, availableOnly, isolationCapable, isolationType, currentHeaders());
+    }
+
+    public List<AccommodationBedDto> listEligibleBeds(
+            String gender,
+            Integer ageYears,
+            boolean availableOnly,
+            Boolean isolationCapable,
+            String isolationType,
+            TenantHeaders headers) {
+        requireEnabled();
+        try {
+            List<AccommodationBedDto> beds = webClient.get()
+                    .uri(uriBuilder -> {
+                        var b = uriBuilder.path("/accommodation/beds/eligible")
+                                .queryParam("availableOnly", availableOnly);
+                        if (gender != null && !gender.isBlank()) {
+                            b = b.queryParam("gender", gender);
+                        }
+                        if (ageYears != null) {
+                            b = b.queryParam("ageYears", ageYears);
+                        }
+                        if (isolationCapable != null) {
+                            b = b.queryParam("isolationCapable", isolationCapable);
+                        }
+                        if (isolationType != null && !isolationType.isBlank()) {
+                            b = b.queryParam("isolationType", isolationType);
+                        }
+                        return b.build();
+                    })
+                    .headers(h -> applyTenant(h, headers))
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<List<AccommodationBedDto>>() {})
+                    .timeout(TIMEOUT)
+                    .block();
+            return beds != null ? beds : List.of();
+        } catch (WebClientResponseException ex) {
+            throw new IllegalStateException("Eligible beds failed: " + extractMessage(ex), ex);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Eligible beds failed: " + ex.getMessage(), ex);
         }
     }
 

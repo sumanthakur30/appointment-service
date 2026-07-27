@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shopmanagement.ipdservice.forms.ConfigurableFormService;
+import com.shopmanagement.ipdservice.forms.InsurerClaimPublishService;
 import com.shopmanagement.ipdservice.forms.IpdFormSubmission;
 
 @RestController
@@ -19,14 +20,25 @@ import com.shopmanagement.ipdservice.forms.IpdFormSubmission;
 public class ConfigurableFormController {
 
     private final ConfigurableFormService configurableFormService;
+    private final InsurerClaimPublishService insurerClaimPublishService;
 
-    public ConfigurableFormController(ConfigurableFormService configurableFormService) {
+    public ConfigurableFormController(
+            ConfigurableFormService configurableFormService,
+            InsurerClaimPublishService insurerClaimPublishService) {
         this.configurableFormService = configurableFormService;
+        this.insurerClaimPublishService = insurerClaimPublishService;
     }
 
     @GetMapping("/bootstrap")
-    public Map<String, Object> bootstrap(@RequestParam String purpose) {
-        return configurableFormService.bootstrap(purpose);
+    public Map<String, Object> bootstrap(
+            @RequestParam String purpose,
+            @RequestParam(required = false) String claimFormat) {
+        return configurableFormService.bootstrap(purpose, claimFormat);
+    }
+
+    @PostMapping("/tpa-claims/publish")
+    public Map<String, Object> publishTpaClaims() {
+        return insurerClaimPublishService.publishPack();
     }
 
     @GetMapping("/admissions/{admissionId}")

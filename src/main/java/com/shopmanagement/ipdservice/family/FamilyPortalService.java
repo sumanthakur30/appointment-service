@@ -1,11 +1,12 @@
 package com.shopmanagement.ipdservice.family;
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,25 +21,29 @@ import com.shopmanagement.ipdservice.support.TenantContext;
 @Service
 public class FamilyPortalService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final VisitorPassRepository passRepository;
     private final IpdAdmissionRepository admissionRepository;
     private final AccommodationClient accommodationClient;
     private final IpdChargeLineRepository chargeRepository;
     private final FamilyPassQrService qrService;
+    private final VisitingHoursRuleRepository visitingHoursRuleRepository;
+    private final boolean hoursRulesEnabled;
 
     public FamilyPortalService(
             VisitorPassRepository passRepository,
             IpdAdmissionRepository admissionRepository,
             AccommodationClient accommodationClient,
             IpdChargeLineRepository chargeRepository,
-            FamilyPassQrService qrService) {
+            FamilyPassQrService qrService,
+            VisitingHoursRuleRepository visitingHoursRuleRepository,
+            @Value("${ipd.family.hours-rules-enabled:true}") boolean hoursRulesEnabled) {
         this.passRepository = passRepository;
         this.admissionRepository = admissionRepository;
         this.accommodationClient = accommodationClient;
         this.chargeRepository = chargeRepository;
         this.qrService = qrService;
+        this.visitingHoursRuleRepository = visitingHoursRuleRepository;
+        this.hoursRulesEnabled = hoursRulesEnabled;
     }
 
     public List<VisitorPass> listForAdmission(Long admissionId) {
@@ -66,12 +71,108 @@ public class FamilyPortalService {
         p.setVisitorName(incoming.getVisitorName().trim());
         p.setRelation(incoming.getRelation());
         p.setPhone(incoming.getPhone());
-        p.setVisitingHours(incoming.getVisitingHours() != null ? incoming.getVisitingHours() : "16:00–18:00");
+        String hours = incoming.getVisitingHours();
+        if (hours == null || hours.isBlank()) {
+            hours = resolveDefaultHours();
+        }
+        p.setVisitingHours(hours);
         p.setValidFrom(incoming.getValidFrom() != null ? incoming.getValidFrom() : LocalDateTime.now());
         p.setValidTo(incoming.getValidTo());
         p.setStatus("ACTIVE");
         p.setCreatedBy(TenantContext.currentActor());
         return passRepository.save(p);
+    }
+
+    public List<VisitingHoursRule> listHoursRules() {
+        ensureDefaultHoursRules();
+        return visitingHoursRuleRepository.findByTenantIdAndShopIdAndActiveTrueOrderByStartTimeAsc(
+                TenantContext.requireTenantId(), TenantContext.requireShopId());
+    }
+
+    @Transactional
+    public VisitingHoursRule upsertHoursRule(VisitingHoursRule incoming) {
+        if (incoming.getStartTime() == null || incoming.getEndTime() == null) {
+            throw new IllegalArgumentException("startTime and endTime are required (HH:mm)");
+        }
+        VisitingHoursRule row = new VisitingHoursRule();
+        row.setTenantId(TenantContext.requireTenantId());
+        row.setShopId(TenantContext.requireShopId());
+        row.setWardCategory(incoming.getWardCategory());
+        row.setDayOfWeek(incoming.getDayOfWeek() == null || incoming.getDayOfWeek().isBlank()
+                ? "ALL" : incoming.getDayOfWeek().trim().toUpperCase());
+        row.setStartTime(incoming.getStartTime().trim());
+        row.setEndTime(incoming.getEndTime().trim());
+        row.setLabel(incoming.getLabel());
+        row.setActive(true);
+        return visitingHoursRuleRepository.save(row);
+    }
+
+    public Map<String, Object> visitingWindowStatus(String passCode) {
+        VisitorPass pass = passRepository.findFirstByPassCodeIgnoreCase(passCode == null ? "" : passCode.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Pass not found"));
+        boolean allowed = isWithinVisitingHours(pass.getVisitingHours());
+        Map<String, Object> out = new HashMap<>();
+        out.put("passCode", pass.getPassCode());
+        out.put("visitingHours", pass.getVisitingHours());
+        out.put("withinHours", allowed);
+        out.put("checkedAt", LocalDateTime.now().toString());
+        return out;
+    }
+
+    private String resolveDefaultHours() {
+        if (!hoursRulesEnabled) {
+            return "16:00–18:00";
+        }
+        ensureDefaultHoursRules();
+        List<VisitingHoursRule> rules = visitingHoursRuleRepository
+                .findByTenantIdAndShopIdAndActiveTrueOrderByStartTimeAsc(
+                        TenantContext.requireTenantId(), TenantContext.requireShopId());
+        if (rules.isEmpty()) {
+            return "16:00–18:00";
+        }
+        VisitingHoursRule r = rules.get(0);
+        return r.getStartTime() + "–" + r.getEndTime();
+    }
+
+    private void ensureDefaultHoursRules() {
+        Long tenantId = TenantContext.requireTenantId();
+        String shopId = TenantContext.requireShopId();
+        if (!visitingHoursRuleRepository.findByTenantIdAndShopIdAndActiveTrueOrderByStartTimeAsc(tenantId, shopId)
+                .isEmpty()) {
+            return;
+        }
+        VisitingHoursRule afternoon = new VisitingHoursRule();
+        afternoon.setTenantId(tenantId);
+        afternoon.setShopId(shopId);
+        afternoon.setDayOfWeek("ALL");
+        afternoon.setStartTime("16:00");
+        afternoon.setEndTime("18:00");
+        afternoon.setLabel("Afternoon visiting");
+        afternoon.setActive(true);
+        visitingHoursRuleRepository.save(afternoon);
+    }
+
+    private static boolean isWithinVisitingHours(String visitingHours) {
+        if (visitingHours == null || visitingHours.isBlank()) {
+            return true;
+        }
+        String normalized = visitingHours.replace("–", "-").replace("—", "-").trim();
+        String[] parts = normalized.split("-");
+        if (parts.length != 2) {
+            return true;
+        }
+        try {
+            LocalTime start = LocalTime.parse(parts[0].trim());
+            LocalTime end = LocalTime.parse(parts[1].trim());
+            LocalTime now = LocalTime.now();
+            if (end.isAfter(start) || end.equals(start)) {
+                return !now.isBefore(start) && !now.isAfter(end);
+            }
+            // overnight window
+            return !now.isBefore(start) || !now.isAfter(end);
+        } catch (Exception ex) {
+            return true;
+        }
     }
 
     @Transactional
@@ -159,9 +260,11 @@ public class FamilyPortalService {
                 .sum();
 
         Map<String, Object> out = new HashMap<>();
+        boolean withinHours = isWithinVisitingHours(pass.getVisitingHours());
         out.put("visitorName", pass.getVisitorName());
         out.put("relation", pass.getRelation());
         out.put("visitingHours", pass.getVisitingHours());
+        out.put("withinHours", withinHours);
         out.put("passCode", pass.getPassCode());
         out.put("portalUrl", qrService.portalUrl(pass.getPassCode()));
         out.put("patientName", a.getPatientName());
@@ -182,7 +285,7 @@ public class FamilyPortalService {
     }
 
     private static String generatePassCode() {
-        int n = 100000 + RANDOM.nextInt(900000);
-        return "VP" + n;
+        // Globally unique enough for public /family/:passCode lookup without tenant header
+        return "VP" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
     }
 }

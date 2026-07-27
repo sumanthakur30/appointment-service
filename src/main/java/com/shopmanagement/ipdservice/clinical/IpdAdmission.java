@@ -29,6 +29,12 @@ public class IpdAdmission extends TenantScopedEntity {
     @Column(name = "patient_name", length = 191)
     private String patientName;
 
+    @Column(name = "patient_gender", length = 16)
+    private String patientGender;
+
+    @Column(name = "patient_age_years")
+    private Integer patientAgeYears;
+
     @Column(name = "encounter_id")
     private Long encounterId;
 
@@ -101,6 +107,27 @@ public class IpdAdmission extends TenantScopedEntity {
     @Column(name = "discharged_at")
     private LocalDateTime dischargedAt;
 
+    @Column(name = "waitlisted_at")
+    private LocalDateTime waitlistedAt;
+
+    @Column(name = "expected_admit_at")
+    private LocalDateTime expectedAdmitAt;
+
+    @Column(name = "waitlist_rank")
+    private Integer waitlistRank;
+
+    @Column(name = "primary_icd_code", length = 32)
+    private String primaryIcdCode;
+
+    @Column(name = "primary_icd_desc", length = 512)
+    private String primaryIcdDesc;
+
+    @Column(name = "secondary_icd_codes", columnDefinition = "TEXT")
+    private String secondaryIcdCodes;
+
+    @Column(name = "tpa_claim_format", length = 64)
+    private String tpaClaimFormat;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -124,6 +151,10 @@ public class IpdAdmission extends TenantScopedEntity {
     public void setPatientId(Long patientId) { this.patientId = patientId; }
     public String getPatientName() { return patientName; }
     public void setPatientName(String patientName) { this.patientName = patientName; }
+    public String getPatientGender() { return patientGender; }
+    public void setPatientGender(String patientGender) { this.patientGender = patientGender; }
+    public Integer getPatientAgeYears() { return patientAgeYears; }
+    public void setPatientAgeYears(Integer patientAgeYears) { this.patientAgeYears = patientAgeYears; }
     public Long getEncounterId() { return encounterId; }
     public void setEncounterId(Long encounterId) { this.encounterId = encounterId; }
     public Long getConsultantDoctorId() { return consultantDoctorId; }
@@ -172,6 +203,20 @@ public class IpdAdmission extends TenantScopedEntity {
     public void setAdmittedAt(LocalDateTime admittedAt) { this.admittedAt = admittedAt; }
     public LocalDateTime getDischargedAt() { return dischargedAt; }
     public void setDischargedAt(LocalDateTime dischargedAt) { this.dischargedAt = dischargedAt; }
+    public LocalDateTime getWaitlistedAt() { return waitlistedAt; }
+    public void setWaitlistedAt(LocalDateTime waitlistedAt) { this.waitlistedAt = waitlistedAt; }
+    public LocalDateTime getExpectedAdmitAt() { return expectedAdmitAt; }
+    public void setExpectedAdmitAt(LocalDateTime expectedAdmitAt) { this.expectedAdmitAt = expectedAdmitAt; }
+    public Integer getWaitlistRank() { return waitlistRank; }
+    public void setWaitlistRank(Integer waitlistRank) { this.waitlistRank = waitlistRank; }
+    public String getPrimaryIcdCode() { return primaryIcdCode; }
+    public void setPrimaryIcdCode(String primaryIcdCode) { this.primaryIcdCode = primaryIcdCode; }
+    public String getPrimaryIcdDesc() { return primaryIcdDesc; }
+    public void setPrimaryIcdDesc(String primaryIcdDesc) { this.primaryIcdDesc = primaryIcdDesc; }
+    public String getSecondaryIcdCodes() { return secondaryIcdCodes; }
+    public void setSecondaryIcdCodes(String secondaryIcdCodes) { this.secondaryIcdCodes = secondaryIcdCodes; }
+    public String getTpaClaimFormat() { return tpaClaimFormat; }
+    public void setTpaClaimFormat(String tpaClaimFormat) { this.tpaClaimFormat = tpaClaimFormat; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public String getConsentFormKey() { return consentFormKey; }

@@ -1,9 +1,12 @@
 package com.shopmanagement.ipdservice.ot;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
@@ -21,10 +24,18 @@ public class OtService {
 
     private final OtBookingRepository bookingRepository;
     private final IpdAdmissionRepository admissionRepository;
+    private final OtPreferenceCardRepository preferenceCardRepository;
+    private final OtImplantUsageRepository implantUsageRepository;
 
-    public OtService(OtBookingRepository bookingRepository, IpdAdmissionRepository admissionRepository) {
+    public OtService(
+            OtBookingRepository bookingRepository,
+            IpdAdmissionRepository admissionRepository,
+            OtPreferenceCardRepository preferenceCardRepository,
+            OtImplantUsageRepository implantUsageRepository) {
         this.bookingRepository = bookingRepository;
         this.admissionRepository = admissionRepository;
+        this.preferenceCardRepository = preferenceCardRepository;
+        this.implantUsageRepository = implantUsageRepository;
     }
 
     public List<OtBooking> list() {
@@ -86,6 +97,113 @@ public class OtService {
             b.setRecoveryBedId(recoveryBedId);
         }
         return bookingRepository.save(b);
+    }
+
+    public List<OtPreferenceCard> listPreferenceCards() {
+        ensureDefaultPreferenceCard();
+        return preferenceCardRepository.findByTenantIdAndShopIdAndActiveTrueOrderByProcedureNameAsc(
+                TenantContext.requireTenantId(), TenantContext.requireShopId());
+    }
+
+    @Transactional
+    public OtPreferenceCard upsertPreferenceCard(OtPreferenceCard incoming) {
+        if (incoming.getCode() == null || incoming.getCode().isBlank()) {
+            throw new IllegalArgumentException("code is required");
+        }
+        if (incoming.getProcedureName() == null || incoming.getProcedureName().isBlank()) {
+            throw new IllegalArgumentException("procedureName is required");
+        }
+        Long tenantId = TenantContext.requireTenantId();
+        String shopId = TenantContext.requireShopId();
+        OtPreferenceCard row = preferenceCardRepository
+                .findByTenantIdAndShopIdAndCodeIgnoreCase(tenantId, shopId, incoming.getCode().trim())
+                .orElseGet(OtPreferenceCard::new);
+        row.setTenantId(tenantId);
+        row.setShopId(shopId);
+        row.setCode(incoming.getCode().trim().toUpperCase(Locale.ROOT));
+        row.setSurgeonName(incoming.getSurgeonName());
+        row.setProcedureCode(incoming.getProcedureCode());
+        row.setProcedureName(incoming.getProcedureName().trim());
+        row.setInstrumentsJson(incoming.getInstrumentsJson());
+        row.setImplantsJson(incoming.getImplantsJson());
+        row.setNotes(incoming.getNotes());
+        row.setActive(true);
+        return preferenceCardRepository.save(row);
+    }
+
+    @Transactional
+    public Map<String, Object> applyPreferenceCard(Long bookingId, String cardCode) {
+        OtBooking b = bookingRepository.findByIdAndTenantIdAndShopId(
+                        bookingId, TenantContext.requireTenantId(), TenantContext.requireShopId())
+                .orElseThrow(() -> new IllegalArgumentException("OT booking not found"));
+        OtPreferenceCard card = preferenceCardRepository
+                .findByTenantIdAndShopIdAndCodeIgnoreCase(
+                        TenantContext.requireTenantId(), TenantContext.requireShopId(), cardCode)
+                .orElseThrow(() -> new IllegalArgumentException("Preference card not found"));
+        String note = "Preference card " + card.getCode() + " applied"
+                + (card.getInstrumentsJson() != null ? " · instruments " + card.getInstrumentsJson() : "");
+        b.setPreopNotes((b.getPreopNotes() == null ? "" : b.getPreopNotes() + "\n") + note);
+        if (b.getProcedureName() == null || b.getProcedureName().isBlank()) {
+            b.setProcedureName(card.getProcedureName());
+        }
+        if ((b.getSurgeonName() == null || b.getSurgeonName().isBlank()) && card.getSurgeonName() != null) {
+            b.setSurgeonName(card.getSurgeonName());
+        }
+        bookingRepository.save(b);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("booking", b);
+        out.put("preferenceCard", card);
+        return out;
+    }
+
+    @Transactional
+    public OtImplantUsage recordImplant(Long bookingId, OtImplantUsage incoming) {
+        bookingRepository.findByIdAndTenantIdAndShopId(
+                        bookingId, TenantContext.requireTenantId(), TenantContext.requireShopId())
+                .orElseThrow(() -> new IllegalArgumentException("OT booking not found"));
+        if (incoming.getImplantSku() == null || incoming.getImplantSku().isBlank()) {
+            throw new IllegalArgumentException("implantSku is required");
+        }
+        OtImplantUsage row = new OtImplantUsage();
+        row.setTenantId(TenantContext.requireTenantId());
+        row.setShopId(TenantContext.requireShopId());
+        row.setOtBookingId(bookingId);
+        row.setImplantSku(incoming.getImplantSku().trim());
+        row.setImplantName(incoming.getImplantName());
+        row.setLotNumber(incoming.getLotNumber());
+        row.setQuantity(incoming.getQuantity() > 0 ? incoming.getQuantity() : 1);
+        row.setLaterality(incoming.getLaterality());
+        row.setRecordedAt(LocalDateTime.now());
+        row.setRecordedBy(TenantContext.currentActor());
+        return implantUsageRepository.save(row);
+    }
+
+    public List<OtImplantUsage> listImplants(Long bookingId) {
+        bookingRepository.findByIdAndTenantIdAndShopId(
+                        bookingId, TenantContext.requireTenantId(), TenantContext.requireShopId())
+                .orElseThrow(() -> new IllegalArgumentException("OT booking not found"));
+        return implantUsageRepository.findByTenantIdAndShopIdAndOtBookingIdOrderByRecordedAtDesc(
+                TenantContext.requireTenantId(), TenantContext.requireShopId(), bookingId);
+    }
+
+    private void ensureDefaultPreferenceCard() {
+        Long tenantId = TenantContext.requireTenantId();
+        String shopId = TenantContext.requireShopId();
+        if (preferenceCardRepository.findByTenantIdAndShopIdAndCodeIgnoreCase(tenantId, shopId, "LAP_CHOLE").isPresent()) {
+            return;
+        }
+        OtPreferenceCard card = new OtPreferenceCard();
+        card.setTenantId(tenantId);
+        card.setShopId(shopId);
+        card.setCode("LAP_CHOLE");
+        card.setProcedureCode("LC");
+        card.setProcedureName("Laparoscopic cholecystectomy");
+        card.setSurgeonName("General");
+        card.setInstrumentsJson("[\"lap tray\",\"clip applier\",\"suction irrigation\"]");
+        card.setImplantsJson("[{\"sku\":\"CLIP-TI\",\"name\":\"Titanium clip\"}]");
+        card.setNotes("Default demo preference card");
+        card.setActive(true);
+        preferenceCardRepository.save(card);
     }
 
     private void assertNoTheatreConflict(Long tenantId, String shopId, OtBooking incoming) {

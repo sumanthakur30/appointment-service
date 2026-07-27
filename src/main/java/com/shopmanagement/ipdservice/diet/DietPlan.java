@@ -50,6 +50,16 @@ public class DietPlan extends TenantScopedEntity {
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom = LocalDate.now();
 
+    /** ORDERED | PREPARING | READY | SERVED | CANCELLED */
+    @Column(name = "kitchen_status", nullable = false, length = 32)
+    private String kitchenStatus = "ORDERED";
+
+    @Column(name = "tray_acked_at")
+    private java.time.LocalDateTime trayAckedAt;
+
+    @Column(name = "tray_acked_by", length = 128)
+    private String trayAckedBy;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getAdmissionId() { return admissionId; }
@@ -72,4 +82,10 @@ public class DietPlan extends TenantScopedEntity {
     public void setDietician(String dietician) { this.dietician = dietician; }
     public LocalDate getEffectiveFrom() { return effectiveFrom; }
     public void setEffectiveFrom(LocalDate effectiveFrom) { this.effectiveFrom = effectiveFrom; }
+    public String getKitchenStatus() { return kitchenStatus; }
+    public void setKitchenStatus(String kitchenStatus) { this.kitchenStatus = kitchenStatus; }
+    public java.time.LocalDateTime getTrayAckedAt() { return trayAckedAt; }
+    public void setTrayAckedAt(java.time.LocalDateTime trayAckedAt) { this.trayAckedAt = trayAckedAt; }
+    public String getTrayAckedBy() { return trayAckedBy; }
+    public void setTrayAckedBy(String trayAckedBy) { this.trayAckedBy = trayAckedBy; }
 }

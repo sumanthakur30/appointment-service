@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.shopmanagement.ipdservice.family.FamilyPortalService;
 import com.shopmanagement.ipdservice.family.VisitorPass;
+import com.shopmanagement.ipdservice.family.VisitingHoursRule;
 
 @RestController
 @RequestMapping("/ipd/family")
@@ -74,5 +75,20 @@ public class FamilyPortalController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"visitor-pass-qr.png\"")
                 .contentType(MediaType.IMAGE_PNG)
                 .body(png);
+    }
+
+    @GetMapping("/visiting-hours")
+    public List<VisitingHoursRule> visitingHours() {
+        return familyPortalService.listHoursRules();
+    }
+
+    @PostMapping("/visiting-hours")
+    public VisitingHoursRule upsertVisitingHours(@RequestBody VisitingHoursRule body) {
+        return familyPortalService.upsertHoursRule(body);
+    }
+
+    @GetMapping("/public/visiting-window")
+    public Map<String, Object> visitingWindow(@RequestParam String passCode) {
+        return familyPortalService.visitingWindowStatus(passCode);
     }
 }

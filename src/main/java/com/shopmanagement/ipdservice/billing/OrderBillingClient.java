@@ -16,6 +16,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import com.shopmanagement.ipdservice.filter.RequestIdFilter;
+import com.shopmanagement.security.SecurityHeaderNames;
 
 @Component
 public class OrderBillingClient {
@@ -24,17 +25,28 @@ public class OrderBillingClient {
 
     private final WebClient webClient;
     private final boolean enabled;
+    private final boolean settlementSyncEnabled;
+    private final String internalApiKey;
 
     public OrderBillingClient(
             WebClient.Builder builder,
             @Value("${order.service.base-url:http://localhost:8083}") String baseUrl,
-            @Value("${order.billing.sync-enabled:true}") boolean enabled) {
+            @Value("${order.billing.sync-enabled:true}") boolean enabled,
+            @Value("${order.billing.settlement-sync-enabled:true}") boolean settlementSyncEnabled,
+            @Value("${security.jwt.internal-api-key:${SECURITY_INTERNAL_API_KEY:${SECURITY_INVITE_INTERNAL_KEY:}}}")
+                    String internalApiKey) {
         this.webClient = builder.baseUrl(trimSlash(baseUrl)).build();
         this.enabled = enabled;
+        this.settlementSyncEnabled = settlementSyncEnabled;
+        this.internalApiKey = internalApiKey == null ? "" : internalApiKey.trim();
     }
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public boolean isSettlementSyncEnabled() {
+        return settlementSyncEnabled;
     }
 
     /**
@@ -45,16 +57,9 @@ public class OrderBillingClient {
             return null;
         }
         try {
-            Map<?, ?> response = webClient.post()
+            Map<?, ?> response = applyServiceHeaders(webClient.post()
                     .uri("/sales-admin/healthcare/ipd-charges")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header(RequestIdFilter.TENANT_ID_HEADER, String.valueOf(headers.tenantId()))
-                    .header(RequestIdFilter.SHOP_ID_HEADER, headers.shopId())
-                    .header(RequestIdFilter.AUTH_ROLE_HEADER,
-                            headers.role() != null ? headers.role() : "SHOP_OWNER")
-                    .header(RequestIdFilter.AUTH_USER_HEADER,
-                            headers.user() != null ? headers.user() : "ipd-service")
-                    .header(RequestIdFilter.AUTH_PERMISSIONS_HEADER, "MANAGE_ORDERS,MANAGE_APPOINTMENTS")
+                    .contentType(MediaType.APPLICATION_JSON), headers)
                     .bodyValue(request)
                     .retrieve()
                     .bodyToMono(Map.class)
@@ -71,11 +76,59 @@ public class OrderBillingClient {
         } catch (WebClientResponseException ex) {
             log.warn("order-service IPD charge sync failed status={} body={}",
                     ex.getStatusCode().value(), ex.getResponseBodyAsString());
-            throw new IllegalStateException("Billing sync failed: " + ex.getStatusCode().value(), ex);
+            return null;
         } catch (Exception ex) {
             log.warn("order-service IPD charge sync error: {}", ex.getMessage());
-            throw new IllegalStateException("Billing sync failed: " + ex.getMessage(), ex);
+            return null;
         }
+    }
+
+    /**
+     * Posts settlement receipt to order-service. Returns paymentId (and orderIds when allocated).
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> postSettlementPayment(IpdSettlementPaymentRequest request, TenantHeaders headers) {
+        if (!settlementSyncEnabled) {
+            return null;
+        }
+        try {
+            Map<?, ?> response = applyServiceHeaders(webClient.post()
+                    .uri("/sales-admin/healthcare/ipd-settlement-payment")
+                    .contentType(MediaType.APPLICATION_JSON), headers)
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .timeout(Duration.ofSeconds(20))
+                    .block();
+            if (response == null) {
+                return Map.of();
+            }
+            Map<String, Object> out = new java.util.LinkedHashMap<>();
+            response.forEach((k, v) -> out.put(String.valueOf(k), v));
+            return out;
+        } catch (WebClientResponseException ex) {
+            log.warn("order-service settlement payment sync failed status={} body={}",
+                    ex.getStatusCode().value(), ex.getResponseBodyAsString());
+            return Map.of();
+        } catch (Exception ex) {
+            log.warn("order-service settlement payment sync error: {}", ex.getMessage());
+            return Map.of();
+        }
+    }
+
+    private WebClient.RequestBodySpec applyServiceHeaders(WebClient.RequestBodySpec spec, TenantHeaders headers) {
+        spec = spec
+                .header(RequestIdFilter.TENANT_ID_HEADER, String.valueOf(headers.tenantId()))
+                .header(RequestIdFilter.SHOP_ID_HEADER, headers.shopId())
+                .header(RequestIdFilter.AUTH_ROLE_HEADER,
+                        headers.role() != null ? headers.role() : "SHOP_OWNER")
+                .header(RequestIdFilter.AUTH_USER_HEADER,
+                        headers.user() != null ? headers.user() : "ipd-service")
+                .header(RequestIdFilter.AUTH_PERMISSIONS_HEADER, "MANAGE_ORDERS,MANAGE_APPOINTMENTS");
+        if (!internalApiKey.isBlank()) {
+            spec = spec.header(SecurityHeaderNames.INTERNAL_API_KEY, internalApiKey);
+        }
+        return spec;
     }
 
     private static String trimSlash(String url) {
@@ -104,5 +157,20 @@ public class OrderBillingClient {
             public Double quantity = 1.0;
             public BigDecimal amount;
         }
+    }
+
+    public static class IpdSettlementPaymentRequest {
+        public Long customerId;
+        public Long encounterId;
+        public Long admissionId;
+        public String admissionNo;
+        public Long settlementEntryId;
+        public String entryType;
+        public BigDecimal amount;
+        public String paymentMethod;
+        public String referenceNo;
+        public String notes;
+        public String idempotencyKey;
+        public String direction;
     }
 }

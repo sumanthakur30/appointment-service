@@ -79,6 +79,11 @@ public final class AccommodationDtos {
         private String status;
         private BigDecimal dailyCharge;
         private String category;
+        private boolean isolationFlag;
+        private String isolationType;
+        private String allowedGender;
+        private Integer minAgeYears;
+        private Integer maxAgeYears;
 
         public Long getId() {
             return id;
@@ -126,6 +131,46 @@ public final class AccommodationDtos {
 
         public void setCategory(String category) {
             this.category = category;
+        }
+
+        public boolean isIsolationFlag() {
+            return isolationFlag;
+        }
+
+        public void setIsolationFlag(boolean isolationFlag) {
+            this.isolationFlag = isolationFlag;
+        }
+
+        public String getIsolationType() {
+            return isolationType;
+        }
+
+        public void setIsolationType(String isolationType) {
+            this.isolationType = isolationType;
+        }
+
+        public String getAllowedGender() {
+            return allowedGender;
+        }
+
+        public void setAllowedGender(String allowedGender) {
+            this.allowedGender = allowedGender;
+        }
+
+        public Integer getMinAgeYears() {
+            return minAgeYears;
+        }
+
+        public void setMinAgeYears(Integer minAgeYears) {
+            this.minAgeYears = minAgeYears;
+        }
+
+        public Integer getMaxAgeYears() {
+            return maxAgeYears;
+        }
+
+        public void setMaxAgeYears(Integer maxAgeYears) {
+            this.maxAgeYears = maxAgeYears;
         }
     }
 

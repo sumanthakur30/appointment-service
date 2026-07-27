@@ -66,7 +66,18 @@ public class ChargeSyncService {
         }
 
         TenantHeaders headers = resolveHeaders(admission);
-        Long orderId = orderBillingClient.postIpdCharges(req, headers);
+        Long orderId;
+        try {
+            orderId = orderBillingClient.postIpdCharges(req, headers);
+        } catch (Exception ex) {
+            log.warn("Sync group failed admission={} date={}: {}",
+                    admission.getId(), chargeDate, ex.getMessage());
+            return Map.of(
+                    "synced", false,
+                    "reason", ex.getMessage() != null ? ex.getMessage() : "sync_failed",
+                    "admissionId", admission.getId(),
+                    "chargeDate", chargeDate.toString());
+        }
         if (orderId == null) {
             return Map.of("synced", false, "reason", "no_order_id", "admissionId", admission.getId());
         }

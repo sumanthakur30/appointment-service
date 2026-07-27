@@ -57,6 +57,24 @@ public class MarAdministration extends TenantScopedEntity {
     @Column(name = "stock_detail", columnDefinition = "TEXT")
     private String stockDetail;
 
+    @Column(name = "allergy_override", nullable = false)
+    private boolean allergyOverride;
+
+    @Column(name = "allergy_match", columnDefinition = "TEXT")
+    private String allergyMatch;
+
+    @Column(name = "five_rights_verified", nullable = false)
+    private boolean fiveRightsVerified;
+
+    @Column(name = "five_rights_detail", columnDefinition = "TEXT")
+    private String fiveRightsDetail;
+
+    @Column(name = "patient_id_confirmed", length = 64)
+    private String patientIdConfirmed;
+
+    @Column(name = "witness_id", length = 128)
+    private String witnessId;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getMarOrderId() { return marOrderId; }
@@ -83,4 +101,16 @@ public class MarAdministration extends TenantScopedEntity {
     public void setStockStatus(String stockStatus) { this.stockStatus = stockStatus; }
     public String getStockDetail() { return stockDetail; }
     public void setStockDetail(String stockDetail) { this.stockDetail = stockDetail; }
+    public boolean isAllergyOverride() { return allergyOverride; }
+    public void setAllergyOverride(boolean allergyOverride) { this.allergyOverride = allergyOverride; }
+    public String getAllergyMatch() { return allergyMatch; }
+    public void setAllergyMatch(String allergyMatch) { this.allergyMatch = allergyMatch; }
+    public boolean isFiveRightsVerified() { return fiveRightsVerified; }
+    public void setFiveRightsVerified(boolean fiveRightsVerified) { this.fiveRightsVerified = fiveRightsVerified; }
+    public String getFiveRightsDetail() { return fiveRightsDetail; }
+    public void setFiveRightsDetail(String fiveRightsDetail) { this.fiveRightsDetail = fiveRightsDetail; }
+    public String getPatientIdConfirmed() { return patientIdConfirmed; }
+    public void setPatientIdConfirmed(String patientIdConfirmed) { this.patientIdConfirmed = patientIdConfirmed; }
+    public String getWitnessId() { return witnessId; }
+    public void setWitnessId(String witnessId) { this.witnessId = witnessId; }
 }

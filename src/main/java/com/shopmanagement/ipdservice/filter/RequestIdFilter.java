@@ -41,7 +41,9 @@ public class RequestIdFilter extends OncePerRequestFilter {
         MDC.put(REQUEST_ID_MDC_KEY, requestId);
         response.setHeader(REQUEST_ID_HEADER, requestId);
         try {
-            if (!"OPTIONS".equalsIgnoreCase(request.getMethod()) && !request.getRequestURI().startsWith("/actuator")) {
+            if (!"OPTIONS".equalsIgnoreCase(request.getMethod())
+                    && !request.getRequestURI().startsWith("/actuator")
+                    && !isPublicFamilyPath(request.getRequestURI())) {
                 String tenantId = request.getHeader(TENANT_ID_HEADER);
                 String shopId = request.getHeader(SHOP_ID_HEADER);
                 if (tenantId == null || tenantId.isBlank() || shopId == null || shopId.isBlank()) {
@@ -93,6 +95,14 @@ public class RequestIdFilter extends OncePerRequestFilter {
     public static List<String> getCurrentPermissions() {
         List<String> permissions = currentPermissions.get();
         return permissions == null ? List.of() : permissions;
+    }
+
+    /** Visitor pass portal — pass code is the credential; no tenant headers. */
+    private static boolean isPublicFamilyPath(String uri) {
+        if (uri == null) {
+            return false;
+        }
+        return uri.contains("/ipd/family/public/");
     }
 
     private static String normalize(String value) {

@@ -64,6 +64,9 @@ public class MarOrder extends TenantScopedEntity {
     @Column(name = "dispense_quantity")
     private Integer dispenseQuantity;
 
+    @Column(name = "controlled_drug", nullable = false)
+    private boolean controlledDrug;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getAdmissionId() { return admissionId; }
@@ -94,4 +97,6 @@ public class MarOrder extends TenantScopedEntity {
     public void setProductId(Long productId) { this.productId = productId; }
     public Integer getDispenseQuantity() { return dispenseQuantity; }
     public void setDispenseQuantity(Integer dispenseQuantity) { this.dispenseQuantity = dispenseQuantity; }
+    public boolean isControlledDrug() { return controlledDrug; }
+    public void setControlledDrug(boolean controlledDrug) { this.controlledDrug = controlledDrug; }
 }

@@ -23,16 +23,19 @@ public class IpdBillService {
     private final IpdAdmissionRepository admissionRepository;
     private final IpdChargeLineRepository chargeRepository;
     private final IpdBillRepository billRepository;
+    private final SettlementLedgerService settlementLedgerService;
     private final ObjectMapper objectMapper;
 
     public IpdBillService(
             IpdAdmissionRepository admissionRepository,
             IpdChargeLineRepository chargeRepository,
             IpdBillRepository billRepository,
+            SettlementLedgerService settlementLedgerService,
             ObjectMapper objectMapper) {
         this.admissionRepository = admissionRepository;
         this.chargeRepository = chargeRepository;
         this.billRepository = billRepository;
+        this.settlementLedgerService = settlementLedgerService;
         this.objectMapper = objectMapper;
     }
 
@@ -75,7 +78,9 @@ public class IpdBillService {
         bill.setLinesJson(toJson(statement.get("lines")));
         bill.setFinalizedAt(LocalDateTime.now());
         bill.setFinalizedBy(TenantContext.currentActor());
-        return toMap(billRepository.save(bill));
+        IpdBill saved = billRepository.save(bill);
+        settlementLedgerService.seedOnFinalize(admissionId, saved);
+        return toMap(saved);
     }
 
     private Map<String, Object> buildStatement(Long admissionId, boolean finalizing) {

@@ -22,4 +22,9 @@ public class AnalyticsController {
     public Map<String, Object> occupancyHeatmap() {
         return occupancyAnalyticsService.occupancyHeatmap();
     }
+
+    @GetMapping("/occupancy-kpis")
+    public Map<String, Object> occupancyKpis() {
+        return occupancyAnalyticsService.occupancyKpis();
+    }
 }

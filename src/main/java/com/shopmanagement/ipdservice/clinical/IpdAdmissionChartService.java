@@ -6,6 +6,10 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.shopmanagement.ipdservice.accommodation.client.AccommodationClient;
+import com.shopmanagement.ipdservice.accommodation.client.AccommodationDtos.AccommodationBedDto;
+import com.shopmanagement.ipdservice.icu.DeviceObservation;
+import com.shopmanagement.ipdservice.icu.DeviceObservationService;
 import com.shopmanagement.ipdservice.mar.MarAdministration;
 import com.shopmanagement.ipdservice.mar.MarAdministrationRepository;
 import com.shopmanagement.ipdservice.mar.MarOrder;
@@ -16,6 +20,8 @@ import com.shopmanagement.ipdservice.nursing.NursingNote;
 import com.shopmanagement.ipdservice.nursing.NursingNoteRepository;
 import com.shopmanagement.ipdservice.nursing.NursingVital;
 import com.shopmanagement.ipdservice.nursing.NursingVitalRepository;
+import com.shopmanagement.ipdservice.radiology.RadiologyOrder;
+import com.shopmanagement.ipdservice.radiology.RadiologyOrderService;
 import com.shopmanagement.ipdservice.support.TenantContext;
 
 @Service
@@ -28,6 +34,9 @@ public class IpdAdmissionChartService {
     private final NursingIntakeOutputRepository ioRepository;
     private final MarOrderRepository marOrderRepository;
     private final MarAdministrationRepository marAdminRepository;
+    private final RadiologyOrderService radiologyOrderService;
+    private final DeviceObservationService deviceObservationService;
+    private final AccommodationClient accommodationClient;
     private final IpdLabClient ipdLabClient;
 
     public IpdAdmissionChartService(
@@ -38,6 +47,9 @@ public class IpdAdmissionChartService {
             NursingIntakeOutputRepository ioRepository,
             MarOrderRepository marOrderRepository,
             MarAdministrationRepository marAdminRepository,
+            RadiologyOrderService radiologyOrderService,
+            DeviceObservationService deviceObservationService,
+            AccommodationClient accommodationClient,
             IpdLabClient ipdLabClient) {
         this.admissionRepository = admissionRepository;
         this.clinicalProfileService = clinicalProfileService;
@@ -46,6 +58,9 @@ public class IpdAdmissionChartService {
         this.ioRepository = ioRepository;
         this.marOrderRepository = marOrderRepository;
         this.marAdminRepository = marAdminRepository;
+        this.radiologyOrderService = radiologyOrderService;
+        this.deviceObservationService = deviceObservationService;
+        this.accommodationClient = accommodationClient;
         this.ipdLabClient = ipdLabClient;
     }
 
@@ -86,8 +101,36 @@ public class IpdAdmissionChartService {
         out.put("marAdministrations", marAdmin);
         out.put("labOrders", labs.getOrDefault("labOrders", List.of()));
         out.put("labResults", labs.getOrDefault("labResults", List.of()));
+        List<RadiologyOrder> radOrders = radiologyOrderService.listForAdmission(admissionId);
+        out.put("radiologyOrders", radOrders);
+        out.put("radiologyReports", radOrders.stream()
+                .filter(r -> "REPORTED".equalsIgnoreCase(r.getStatus()))
+                .toList());
+        List<DeviceObservation> devices = deviceObservationService.isEnabled()
+                ? deviceObservationService.list(admissionId)
+                : List.of();
+        out.put("deviceObservations", devices);
+
+        String bedCategory = null;
+        String bedCode = null;
+        if (admission.getBedId() != null) {
+            try {
+                AccommodationBedDto bed = accommodationClient.getBed(admission.getBedId());
+                if (bed != null) {
+                    bedCategory = bed.getCategory();
+                    bedCode = bed.getBedCode();
+                }
+            } catch (Exception ignored) {
+                // chart still useful without bed metadata
+            }
+        }
+        boolean criticalCare = isCriticalCareCategory(bedCategory);
+        out.put("bedCode", bedCode);
+        out.put("bedCategory", bedCategory);
+        out.put("criticalCare", criticalCare);
         if (!vitals.isEmpty()) {
-            out.put("latestNews", com.shopmanagement.ipdservice.nursing.EarlyWarningScore.news2(vitals.get(0)));
+            Map<String, Object> news = com.shopmanagement.ipdservice.nursing.EarlyWarningScore.news2(vitals.get(0));
+            out.put("latestNews", news);
             out.put("vitalsTrend", vitals.stream().limit(12).map(v -> {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("recordedAt", v.getRecordedAt());
@@ -99,11 +142,48 @@ public class IpdAdmissionChartService {
                 row.put("news", com.shopmanagement.ipdservice.nursing.EarlyWarningScore.news2(v));
                 return row;
             }).toList());
+            if (criticalCare) {
+                out.put("criticalPanel", buildCriticalPanel(bedCategory, news, vitals.get(0), io, marOrders, devices));
+            }
         } else {
             out.put("latestNews", Map.of("score", 0, "risk", "NONE"));
             out.put("vitalsTrend", List.of());
+            if (criticalCare) {
+                out.put("criticalPanel", buildCriticalPanel(
+                        bedCategory, Map.of("score", 0, "risk", "NONE"), null, io, marOrders, devices));
+            }
         }
         return out;
+    }
+
+    private static Map<String, Object> buildCriticalPanel(
+            String bedCategory,
+            Map<String, Object> news,
+            NursingVital latestVital,
+            List<NursingIntakeOutput> io,
+            List<MarOrder> marOrders,
+            List<DeviceObservation> devices) {
+        Map<String, Object> panel = new LinkedHashMap<>();
+        panel.put("bedCategory", bedCategory);
+        panel.put("news", news);
+        if (latestVital != null) {
+            panel.put("latestVital", latestVital);
+        }
+        panel.put("recentIo", io.stream().limit(6).toList());
+        panel.put("activeMar", marOrders.stream()
+                .filter(o -> "ACTIVE".equalsIgnoreCase(o.getStatus()))
+                .limit(8)
+                .toList());
+        panel.put("devices", devices.stream().limit(4).toList());
+        return panel;
+    }
+
+    private static boolean isCriticalCareCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return false;
+        }
+        String c = category.trim().toUpperCase();
+        return c.contains("ICU") || c.contains("HDU") || c.contains("CCU") || c.contains("NICU") || c.contains("PICU");
     }
 
     public Map<String, Object> placeLabOrder(Long admissionId, Map<String, Object> request) {

@@ -62,6 +62,12 @@ public class DischargeSummaryPdfRenderer {
                     labelFont, bodyFont);
             addKv(header, "Department", blank(admission.getDepartment()), labelFont, bodyFont);
             addKv(header, "Diagnosis on admit", blank(admission.getDiagnosis()), labelFont, bodyFont);
+            addKv(header, "Primary ICD",
+                    blank(admission.getPrimaryIcdCode())
+                            + (admission.getPrimaryIcdDesc() != null && !admission.getPrimaryIcdDesc().isBlank()
+                                    ? " — " + admission.getPrimaryIcdDesc() : ""),
+                    labelFont, bodyFont);
+            addKv(header, "Secondary ICD", blank(admission.getSecondaryIcdCodes()), labelFont, bodyFont);
             addKv(header, "Admitted", format(admission.getAdmittedAt()), labelFont, bodyFont);
             addKv(header, "Discharged", format(admission.getDischargedAt()), labelFont, bodyFont);
             doc.add(header);

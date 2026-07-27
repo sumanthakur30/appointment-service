@@ -9,6 +9,10 @@ public interface DietPlanRepository extends JpaRepository<DietPlan, Long> {
     List<DietPlan> findByTenantIdAndShopIdAndAdmissionIdOrderByEffectiveFromDesc(
             Long tenantId, String shopId, Long admissionId);
 
+    List<DietPlan> findByTenantIdAndShopIdAndActiveTrueOrderByEffectiveFromDesc(Long tenantId, String shopId);
+
     Optional<DietPlan> findFirstByTenantIdAndShopIdAndAdmissionIdAndActiveTrueOrderByEffectiveFromDesc(
             Long tenantId, String shopId, Long admissionId);
+
+    Optional<DietPlan> findByIdAndTenantIdAndShopId(Long id, Long tenantId, String shopId);
 }

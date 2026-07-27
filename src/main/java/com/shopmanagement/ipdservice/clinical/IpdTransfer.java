@@ -43,6 +43,9 @@ public class IpdTransfer extends TenantScopedEntity {
     @Column(name = "created_by", length = 128)
     private String createdBy;
 
+    @Column(name = "checklist_submission_id")
+    private Long checklistSubmissionId;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getAdmissionId() { return admissionId; }
@@ -61,4 +64,6 @@ public class IpdTransfer extends TenantScopedEntity {
     public void setApprovedBy(String approvedBy) { this.approvedBy = approvedBy; }
     public String getCreatedBy() { return createdBy; }
     public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+    public Long getChecklistSubmissionId() { return checklistSubmissionId; }
+    public void setChecklistSubmissionId(Long checklistSubmissionId) { this.checklistSubmissionId = checklistSubmissionId; }
 }

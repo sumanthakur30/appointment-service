@@ -1,6 +1,7 @@
 package com.shopmanagement.ipdservice.web;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,8 +33,23 @@ public class DietController {
         return dietService.history(admissionId);
     }
 
+    @GetMapping("/admissions/{admissionId}/allergy-check")
+    public Map<String, Object> allergyCheck(@PathVariable Long admissionId) {
+        return dietService.checkAllergyConflicts(admissionId);
+    }
+
     @PostMapping("/admissions/{admissionId}")
     public DietPlan upsert(@PathVariable Long admissionId, @RequestBody DietPlan body) {
         return dietService.upsertActive(admissionId, body);
+    }
+
+    @GetMapping("/kitchen/board")
+    public List<Map<String, Object>> kitchenBoard() {
+        return dietService.kitchenBoard();
+    }
+
+    @PostMapping("/kitchen/{dietPlanId}/status")
+    public DietPlan kitchenStatus(@PathVariable Long dietPlanId, @RequestBody Map<String, String> body) {
+        return dietService.advanceKitchen(dietPlanId, body.get("status"));
     }
 }

@@ -17,6 +17,9 @@ public interface IpdAdmissionRepository extends JpaRepository<IpdAdmission, Long
     List<IpdAdmission> findByTenantIdAndShopIdAndStatusInOrderByAdmittedAtDesc(
             Long tenantId, String shopId, List<String> statuses);
 
+    List<IpdAdmission> findByTenantIdAndShopIdAndStatusOrderByWaitlistRankAscWaitlistedAtAsc(
+            Long tenantId, String shopId, String status);
+
     /** Scheduler / batch — all tenants. */
     List<IpdAdmission> findByStatusIn(List<String> statuses);
 }

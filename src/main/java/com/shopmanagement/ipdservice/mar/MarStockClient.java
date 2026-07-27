@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import com.shopmanagement.ipdservice.filter.RequestIdFilter;
+import com.shopmanagement.security.SecurityHeaderNames;
 
 @Component
 public class MarStockClient {
@@ -21,13 +22,17 @@ public class MarStockClient {
 
     private final WebClient webClient;
     private final boolean enabled;
+    private final String internalApiKey;
 
     public MarStockClient(
             WebClient.Builder builder,
             @Value("${stock.service.base-url:http://localhost:8082}") String baseUrl,
-            @Value("${stock.mar.link-enabled:true}") boolean enabled) {
+            @Value("${stock.mar.link-enabled:true}") boolean enabled,
+            @Value("${security.jwt.internal-api-key:${SECURITY_INTERNAL_API_KEY:${SECURITY_INVITE_INTERNAL_KEY:}}}")
+                    String internalApiKey) {
         this.webClient = builder.baseUrl(trimSlash(baseUrl)).build();
         this.enabled = enabled;
+        this.internalApiKey = internalApiKey == null ? "" : internalApiKey.trim();
     }
 
     public boolean isEnabled() {
@@ -74,6 +79,36 @@ public class MarStockClient {
         }
     }
 
+    /** Return unused / discharge leftover quantity to pharmacy stock. */
+    public void returnToStock(Long productId, int quantity, String note) {
+        if (!enabled) {
+            return;
+        }
+        if (productId == null || quantity <= 0) {
+            return;
+        }
+        try {
+            webClient.post()
+                    .uri("/stock/add")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .headers(this::applyTenantHeaders)
+                    .bodyValue(Map.of(
+                            "productId", productId,
+                            "quantity", quantity,
+                            "branchId", 1L))
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .timeout(Duration.ofSeconds(20))
+                    .block();
+        } catch (WebClientResponseException ex) {
+            log.warn("MAR stock return failed status={} body={}", ex.getStatusCode().value(), ex.getResponseBodyAsString());
+            throw new IllegalStateException("Pharmacy stock return failed: " + extractMessage(ex), ex);
+        } catch (Exception ex) {
+            log.warn("MAR stock return error: {}", ex.getMessage());
+            throw new IllegalStateException("Pharmacy stock return failed: " + ex.getMessage(), ex);
+        }
+    }
+
     private void applyTenantHeaders(org.springframework.http.HttpHeaders headers) {
         Long tenantId = RequestIdFilter.getCurrentTenantId();
         String shopId = RequestIdFilter.getCurrentShopId();
@@ -84,6 +119,9 @@ public class MarStockClient {
         headers.set(RequestIdFilter.AUTH_ROLE_HEADER, role != null ? role : "SHOP_OWNER");
         headers.set(RequestIdFilter.AUTH_USER_HEADER, user != null ? user : "ipd-service");
         headers.set(RequestIdFilter.AUTH_PERMISSIONS_HEADER, "MANAGE_STOCK,MANAGE_ORDERS");
+        if (!internalApiKey.isBlank()) {
+            headers.set(SecurityHeaderNames.INTERNAL_API_KEY, internalApiKey);
+        }
     }
 
     private static String extractMessage(WebClientResponseException ex) {
