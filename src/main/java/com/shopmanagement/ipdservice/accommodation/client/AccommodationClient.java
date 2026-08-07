@@ -9,8 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -18,6 +21,9 @@ import com.shopmanagement.ipdservice.accommodation.client.AccommodationDtos.Acco
 import com.shopmanagement.ipdservice.accommodation.client.AccommodationDtos.AccommodationNodeDto;
 import com.shopmanagement.ipdservice.accommodation.client.AccommodationDtos.BedOccupancyDto;
 import com.shopmanagement.ipdservice.filter.RequestIdFilter;
+import com.shopmanagement.security.SecurityHeaderNames;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * Remote bed/occupancy operations against accommodation-service (Phase 4.1).
@@ -30,13 +36,17 @@ public class AccommodationClient {
 
     private final WebClient webClient;
     private final boolean enabled;
+    private final String internalApiKey;
 
     public AccommodationClient(
             WebClient.Builder builder,
             @Value("${accommodation.service.base-url:http://localhost:8101}") String baseUrl,
-            @Value("${accommodation.service.enabled:true}") boolean enabled) {
+            @Value("${accommodation.service.enabled:true}") boolean enabled,
+            @Value("${security.jwt.internal-api-key:${SECURITY_INTERNAL_API_KEY:${SECURITY_INVITE_INTERNAL_KEY:}}}")
+                    String internalApiKey) {
         this.webClient = builder.baseUrl(trimSlash(baseUrl)).build();
         this.enabled = enabled;
+        this.internalApiKey = internalApiKey == null ? "" : internalApiKey.trim();
     }
 
     public boolean isEnabled() {
@@ -108,7 +118,7 @@ public class AccommodationClient {
             BedOccupancyDto occ = webClient.post()
                     .uri("/accommodation/beds/{id}/allocate", bedId)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .headers(h -> applyTenant(h, headers))
+                    .headers(h -> applyAuth(h, headers))
                     .bodyValue(payload)
                     .retrieve()
                     .bodyToMono(BedOccupancyDto.class)
@@ -165,7 +175,7 @@ public class AccommodationClient {
                         }
                         return b.build();
                     })
-                    .headers(h -> applyTenant(h, headers))
+                    .headers(h -> applyAuth(h, headers))
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<List<AccommodationBedDto>>() {})
                     .timeout(TIMEOUT)
@@ -187,7 +197,7 @@ public class AccommodationClient {
         try {
             return webClient.post()
                     .uri("/accommodation/occupancies/{id}/release", occupancyId)
-                    .headers(h -> applyTenant(h, headers))
+                    .headers(h -> applyAuth(h, headers))
                     .retrieve()
                     .bodyToMono(BedOccupancyDto.class)
                     .timeout(TIMEOUT)
@@ -211,7 +221,7 @@ public class AccommodationClient {
             return webClient.post()
                     .uri("/accommodation/beds/{id}/status", bedId)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .headers(h -> applyTenant(h, headers))
+                    .headers(h -> applyAuth(h, headers))
                     .bodyValue(Map.of("status", status))
                     .retrieve()
                     .bodyToMono(AccommodationBedDto.class)
@@ -234,7 +244,7 @@ public class AccommodationClient {
         try {
             return webClient.get()
                     .uri("/accommodation/beds/{id}", bedId)
-                    .headers(h -> applyTenant(h, headers))
+                    .headers(h -> applyAuth(h, headers))
                     .retrieve()
                     .bodyToMono(AccommodationBedDto.class)
                     .timeout(TIMEOUT)
@@ -257,7 +267,7 @@ public class AccommodationClient {
         try {
             List<AccommodationBedDto> beds = webClient.get()
                     .uri("/accommodation/beds")
-                    .headers(h -> applyTenant(h, headers))
+                    .headers(h -> applyAuth(h, headers))
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<List<AccommodationBedDto>>() {})
                     .timeout(TIMEOUT)
@@ -279,7 +289,7 @@ public class AccommodationClient {
         try {
             List<AccommodationNodeDto> nodes = webClient.get()
                     .uri("/accommodation/nodes")
-                    .headers(h -> applyTenant(h, headers))
+                    .headers(h -> applyAuth(h, headers))
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<List<AccommodationNodeDto>>() {})
                     .timeout(TIMEOUT)
@@ -322,6 +332,34 @@ public class AccommodationClient {
                 headers.role() != null ? headers.role() : "SHOP_OWNER");
         h.set(RequestIdFilter.AUTH_USER_HEADER,
                 headers.user() != null ? headers.user() : "ipd-service");
+        // Prefer inbound user JWT when present; otherwise trusted service key.
+        String bearer = currentAuthorizationHeader();
+        if (bearer != null && !bearer.isBlank()) {
+            h.set(HttpHeaders.AUTHORIZATION, bearer);
+        }
+    }
+
+    private void applyAuth(org.springframework.http.HttpHeaders h, TenantHeaders headers) {
+        applyTenant(h, headers);
+        if (!internalApiKey.isBlank()) {
+            h.set(SecurityHeaderNames.INTERNAL_API_KEY, internalApiKey);
+        }
+    }
+
+    private static String currentAuthorizationHeader() {
+        try {
+            var attrs = RequestContextHolder.getRequestAttributes();
+            if (attrs instanceof ServletRequestAttributes servletAttrs) {
+                HttpServletRequest req = servletAttrs.getRequest();
+                String auth = req.getHeader(HttpHeaders.AUTHORIZATION);
+                if (auth != null && auth.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                    return auth;
+                }
+            }
+        } catch (Exception ignored) {
+            // no request context (async / scheduled)
+        }
+        return null;
     }
 
     private static String extractMessage(WebClientResponseException ex) {
