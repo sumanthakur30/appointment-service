@@ -1,4 +1,4 @@
-package com.shopmanagement.ipdservice.filter;
+﻿package com.shopmanagement.ipdservice.filter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +30,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
     private static final ThreadLocal<String> currentRole = new ThreadLocal<>();
     private static final ThreadLocal<String> currentUser = new ThreadLocal<>();
     private static final ThreadLocal<List<String>> currentPermissions = new ThreadLocal<>();
+    private static final ThreadLocal<String> currentAuthorization = new ThreadLocal<>();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -64,6 +65,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
                 currentRole.set(normalize(request.getHeader(AUTH_ROLE_HEADER)));
                 currentUser.set(normalize(request.getHeader(AUTH_USER_HEADER)));
                 currentPermissions.set(parsePermissions(request.getHeader(AUTH_PERMISSIONS_HEADER)));
+                currentAuthorization.set(normalizeAuth(request.getHeader("Authorization")));
             }
             filterChain.doFilter(request, response);
         } finally {
@@ -97,7 +99,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
         return permissions == null ? List.of() : permissions;
     }
 
-    /** Visitor pass portal — pass code is the credential; no tenant headers. */
+    /** Visitor pass portal ΓÇö pass code is the credential; no tenant headers. */
     private static boolean isPublicFamilyPath(String uri) {
         if (uri == null) {
             return false;

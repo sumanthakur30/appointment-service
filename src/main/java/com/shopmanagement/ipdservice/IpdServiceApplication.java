@@ -2,10 +2,14 @@ package com.shopmanagement.ipdservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.shopmanagement.ipdservice", "com.shopmanagement.appointmentservice"})
+@EntityScan(basePackages = {"com.shopmanagement.ipdservice", "com.shopmanagement.appointmentservice"})
+@EnableJpaRepositories(basePackages = {"com.shopmanagement.ipdservice", "com.shopmanagement.appointmentservice"})
 @EnableDiscoveryClient
 @EnableScheduling
 public class IpdServiceApplication {
