@@ -101,6 +101,7 @@ public class IpdAdmissionService {
         }
         a.setNotes(incoming.getNotes());
         a.setCreatedBy(TenantContext.currentActor());
+        applyTpa(a, incoming);
         return admissionRepository.save(a);
     }
 
@@ -248,10 +249,15 @@ public class IpdAdmissionService {
     @Transactional
     public IpdAdmission updateTpa(Long admissionId, IpdAdmission incoming) {
         IpdAdmission a = get(admissionId);
-        if (incoming.getTpaName() != null) {
+        applyTpa(a, incoming);
+        return admissionRepository.save(a);
+    }
+
+    private void applyTpa(IpdAdmission a, IpdAdmission incoming) {
+        if (incoming.getTpaName() != null && !incoming.getTpaName().isBlank()) {
             a.setTpaName(incoming.getTpaName().trim());
         }
-        if (incoming.getTpaPreauthStatus() != null) {
+        if (incoming.getTpaPreauthStatus() != null && !incoming.getTpaPreauthStatus().isBlank()) {
             a.setTpaPreauthStatus(incoming.getTpaPreauthStatus().trim().toUpperCase());
         }
         if (incoming.getTpaPreauthRef() != null) {
@@ -266,7 +272,6 @@ public class IpdAdmissionService {
         if (incoming.getTpaClaimFormat() != null && !incoming.getTpaClaimFormat().isBlank()) {
             a.setTpaClaimFormat(incoming.getTpaClaimFormat().trim().toUpperCase());
         }
-        return admissionRepository.save(a);
     }
 
     public String resolveClaimFormat(IpdAdmission a) {
