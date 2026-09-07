@@ -4,7 +4,7 @@
 #   $env:COMPOSE_ENV_FILES='.env.local'
 #   docker compose -f docker-compose.yml -f ipd-service/deploy/docker-compose.ipd.yml --profile ipd up -d
 #
-# Hub defaults: ipd-service:1.0.2 (1.0.4 when published). EC2 uses docker-compose.ec2-ipd.yml.
+# Hub defaults: ipd-service:1.0.4, accommodation-service:1.0.2. EC2 uses docker-compose.ec2-ipd.yml.
 
 services:
   accommodation-service:
@@ -33,7 +33,7 @@ services:
 
   ipd-service:
     profiles: ["ipd"]
-    image: ${IMAGE_PREFIX:-sumanthakur30}/ipd-service:${IPD_IMAGE_TAG:-1.0.2}
+    image: ${IMAGE_PREFIX:-sumanthakur30}/ipd-service:${IPD_IMAGE_TAG:-1.0.4}
     restart: unless-stopped
     environment:
       SECURITY_JWT_ENFORCE: "false"
